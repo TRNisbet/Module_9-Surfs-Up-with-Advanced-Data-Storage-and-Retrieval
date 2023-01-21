@@ -46,6 +46,11 @@ Base.prepare(engine, reflect=True)
 
 # We'll create a variable for each of the classes so that 
 # we can reference them later, as shown below
+#reference tables
+Measurement = Base.classes.measurement
+Station = Base.classes.station
+
+#create session link
 session = Session(engine)
 
 #This will create a Flask application called "app."
@@ -75,14 +80,70 @@ def welcome():
     return (
         '''
     Welcome to the Climate Analysis API!
-    Available Routes:
-    /api/v1.0/precipitation
-    /api/v1.0/stations
-    /api/v1.0/tobs
-    /api/v1.0/temp/start/end
+    Available Routes: <br>
+    /api/v1.0/precipitation <br>
+    /api/v1.0/stations <br>
+    /api/v1.0/tobs <br>
+    /api/v1.0/temp/start/end <br>
     ''')
 
+# To create the route, add the following code
+@app.route("/api/v1.0/precipitation")
+
+#Next, we will create the precipitation() function.
+def precipitation():
+    prev_year = dt.date(2017, 8, 23) - dt.timedelta(days=365)
+    precipitation = session.query(Measurement.date, Measurement.prcp).\
+        filter(Measurement.date >= prev_year).all()
+    precip = {date: prcp for date, prcp in precipitation}
+    return jsonify(precip)
+# jsonify() can be used to format results into a JSON
+# structured file.
+# 127.0.0.1:5000/api/v1.0/precipitation
+
+#set up stations route
 
 
+@app.route("/api/v1.0/stations")
+#define stations function
+def stations():
+    results = session.query(Station.station).all()
+    #unravel into an array
+    stations = list(np.ravel(results))
+    return jsonify(stations=stations)
+    #formats list into JSON
+
+#setup temperature route
 
 
+@app.route("/api/v1.0/tobs")
+#define temp_monthly function
+def temp_monthly():
+    prev_year = dt.date(2017, 8, 23) - dt.timedelta(days=365)
+    results = session.query(Measurement.tobs).\
+        filter(Measurement.station == 'USC00519281').\
+        filter(Measurement.date >= prev_year).all()
+    temps = list(np.ravel(results))
+    return jsonify(temps=temps)
+
+#set up statistics route
+
+
+@app.route("/api/v1.0/temp/<start>")
+@app.route("/api/v1.0/temp/<start>/<end>")
+# #define statistics function
+def stats(start=None, end=None):
+    sel = [func.min(Measurement.tobs), func.avg(
+        Measurement.tobs), func.max(Measurement.tobs)]
+
+    if not end:
+        results = session.query(*sel).\
+            filter(Measurement.date >= start).all()
+        temps = list(np.ravel(results))
+        return jsonify(temps)
+
+    results = session.query(*sel).\
+        filter(Measurement.date >= start).\
+        filter(Measurement.date <= end).all()
+    temps = list(np.ravel(results))
+    return jsonify(temps)
